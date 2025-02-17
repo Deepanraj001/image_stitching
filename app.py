@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 from flask import Flask, request, jsonify
-import os
 import base64
 
 # Initialize Flask app
@@ -12,21 +10,22 @@ app = Flask(__name__)
 def load_images_from_request(files):
     images = []
     for file in files:
+        # Read the image from the byte data of the uploaded file
         img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
         if img is None:
-            return None
+            return None  # If an image could not be loaded, return None
         images.append(img)
     return images
 
 # 🔹 Function to stitch images efficiently
 def stitch_images(img1, img2, img3):
-    stitcher = cv2.Stitcher_create()
+    stitcher = cv2.Stitcher_create()  # OpenCV Stitcher for panorama
     status, stitched = stitcher.stitch([img1, img2, img3])
 
     if status == cv2.Stitcher_OK:
         return stitched
     else:
-        print("Error in stitching: ", status)
+        print("Error in stitching:", status)
         return None
 
 # 🔹 API endpoint to accept images and return the stitched result
@@ -51,7 +50,7 @@ def stitch_endpoint():
     if stitched_result is None:
         return jsonify({"error": "Error stitching images."}), 500
     
-    # Convert the stitched image to a base64 string to return it in the response
+    # Convert the stitched image to a base64 string
     _, buffer = cv2.imencode('.jpg', stitched_result)
     image_bytes = buffer.tobytes()
     
