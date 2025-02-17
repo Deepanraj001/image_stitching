@@ -1,15 +1,21 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from tkinter import filedialog
+from flask import Flask, request, jsonify
+import os
+import base64
 
-# 🔹 Function to load images
-def load_images():
-    file_paths = filedialog.askopenfilenames(title="Select three images", filetypes=[("Image Files", "*.jpg;*.png")])
-    if len(file_paths) != 3:
-        print("Please select exactly three images.")
-        return None
-    images = [cv2.imread(fp) for fp in file_paths]
+# Initialize Flask app
+app = Flask(__name__)
+
+# 🔹 Function to load images from the uploaded files
+def load_images_from_request(files):
+    images = []
+    for file in files:
+        img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return None
+        images.append(img)
     return images
 
 # 🔹 Function to stitch images efficiently
@@ -23,22 +29,37 @@ def stitch_images(img1, img2, img3):
         print("Error in stitching: ", status)
         return None
 
-# 🔹 Function to show images in Jupyter Notebook
-def show_image(title, image):
-    plt.figure(figsize=(10, 6))
-    plt.title(title)
-    plt.axis("off")
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.show()
-
-# Load images manually
-images = load_images()
-if images:
+# 🔹 API endpoint to accept images and return the stitched result
+@app.route('/stitch', methods=['POST'])
+def stitch_endpoint():
+    files = request.files.getlist('images')  # Expecting a list of images in 'images' field
+    
+    if len(files) != 3:
+        return jsonify({"error": "Please upload exactly three images."}), 400
+    
+    # Load images from the request
+    images = load_images_from_request(files)
+    
+    if images is None:
+        return jsonify({"error": "Error loading images."}), 400
+    
     left, middle, right = images
-
+    
     # Perform stitching
     stitched_result = stitch_images(left, middle, right)
 
-    # Display result
-    if stitched_result is not None:
-        show_image("Stitched Panorama", stitched_result)
+    if stitched_result is None:
+        return jsonify({"error": "Error stitching images."}), 500
+    
+    # Convert the stitched image to a base64 string to return it in the response
+    _, buffer = cv2.imencode('.jpg', stitched_result)
+    image_bytes = buffer.tobytes()
+    
+    # Encode the image in base64
+    encoded_image = base64.b64encode(image_bytes).decode('utf-8')
+    
+    return jsonify({"stitched_image": encoded_image})
+
+# Run Flask app (host 0.0.0.0 so it's accessible externally)
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
