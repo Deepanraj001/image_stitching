@@ -1,44 +1,49 @@
+import streamlit as st
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from tkinter import filedialog
 
-# 🔹 Function to load images
-def load_images():
-    file_paths = filedialog.askopenfilenames(title="Select three images", filetypes=[("Image Files", "*.jpg;*.png")])
-    if len(file_paths) != 3:
-        print("Please select exactly three images.")
-        return None
-    images = [cv2.imread(fp) for fp in file_paths]
+# 🔹 Function to load images from Streamlit uploader
+def load_images(uploaded_files):
+    images = []
+    for uploaded_file in uploaded_files:
+        img = cv2.imdecode(np.frombuffer(uploaded_file.read(), np.uint8), 1)
+        images.append(img)
     return images
 
 # 🔹 Function to stitch images efficiently
 def stitch_images(img1, img2, img3):
     stitcher = cv2.Stitcher_create()
     status, stitched = stitcher.stitch([img1, img2, img3])
-
+    
     if status == cv2.Stitcher_OK:
         return stitched
     else:
-        print("Error in stitching: ", status)
         return None
 
-# 🔹 Function to show images in Jupyter Notebook
+# 🔹 Function to display the image in Streamlit
 def show_image(title, image):
-    plt.figure(figsize=(10, 6))
-    plt.title(title)
-    plt.axis("off")
-    plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-    plt.show()
+    st.image(image, caption=title, use_column_width=True)
 
-# Load images manually
-images = load_images()
-if images:
+# Streamlit UI
+st.title('Image Stitching Application')
+st.write("Upload exactly three images to stitch them into a panorama!")
+
+# File upload
+uploaded_files = st.file_uploader("Choose three images", accept_multiple_files=True, type=["jpg", "png"])
+
+if len(uploaded_files) == 3:
+    # Load the images
+    images = load_images(uploaded_files)
     left, middle, right = images
-
+    
     # Perform stitching
     stitched_result = stitch_images(left, middle, right)
 
-    # Display result
     if stitched_result is not None:
+        # Display stitched result
         show_image("Stitched Panorama", stitched_result)
+    else:
+        st.error("There was an issue in stitching the images.")
+else:
+    st.warning("Please upload exactly three images to proceed.")
